@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width" />
+        <style>
+            body {
+                font-family: Tahoma, Geneva, sans-serif;
+            }
+        </style>
+        <script src="colyseus.js"></script>
+    </head>
+    <body>
+      <div  style="width: 50%;float:left;">
+        <h2>Login</h2>
+        <label for="user_name">Username</label>
+        <input type="text" name="username" id="username" />
+        <label for="password">Password</label>
+        <input type="password" name="password" id="password" />
+        <button onclick="login()">Login</button>
+    </div>
+
+        <form id="form" style="width: 50%;float:left;">
+          <h2>Messages</h2>
+            Send data: <input type="text" id="message_type" value="message" placeholder="messageType" />
+            <input type="text" id="message_data"  placeholder="data" />
+            <input type="submit" value="send" />
+        </form>
+     
+
+        <div style="width: 100%;float:left;">
+            <h2>List room</h2>
+            <div id="list-room"></div>
+        </div>
+        Room name: <input type="text" id="room_name" value="my_room" /> <br />
+        <button onclick="join()">Join</button>
+        <button onclick="joinOrCreate()">Join or create</button>
+        <button onclick="create()">Create</button>
+        <button onclick="joinByLastId()">Join by last id</button>
+        <button onclick="getAvailableRooms()">List avaiable rooms</button>
+        <button onclick="closeConnection()">Close connection</button>
+        <button onclick="reconnect()">Re-join last closed connection</button>
+        <h2>Messages</h2>
+
+        <div id="boardgame" style="float: left;"></div>
+        <div id="messages" style="background-color: rgb(236, 236, 236); colorgb(41, 41, 41)ite; overflow-y: scroll; height: 512px;width: 40%;float:left"></div>
+  
+        <div style="float:left;width: 60%">
+          <div id="players" style="background-color: rgb(26, 24, 24); color: white; overflow-y: scroll; height: 512px;float:left;width: calc(100% - 120px);"></div>
+          <div style="float:left;width:120px;height:100px">
+            <button onclick="move('to_up')" style="margin-left: 20px;">Up</button>
+            <br>
+            <button onclick="move('to_left')">Left</button>
+            <button onclick="move('to_right')">Right</button>
+            <br>
+            <button onclick="move('to_down')" style="margin-left: 20px;">Down</button>
+          </div>
+         
+
+        </div>
+
+
+        <script src="./axios.min.js"></script>
+        <script>
+            var host = (window.document.location.host || "localhost").replace(/:.*/, "");
+            console.log(host);
+            var client = new Colyseus.Client("ws://" + host + ":2567");
+            console.log(client.auth);
+            var room;
+
+            function login() {
+                let form = { username: document.getElementById("username").value, password: document.getElementById("password").value };
+                axios
+                    .post("http://localhost:2567/api/auth/login", form)
+                    .then((response) => {
+                        const data = response.data;
+                        console.log(`POST: user is added`, data);
+                    })
+                    .catch((error) => console.error(error));
+            }
+
+            function addListeners(room) {
+                console.log("joined!");
+                console.log("room", room.id, "sessionId", room.sessionId);
+                room.onMessage("*", (type, message) => {
+                    console.log("received message:", type, "=>", message);
+                    let p = document.createElement("p");
+                    p.innerHTML = `${type} : <pre>${JSON.stringify(message)}</pre>`;
+                    document.getElementById("messages").append(p);
+                });
+
+                room.onLeave(function () {
+                    console.log("LEFT ROOM", arguments);
+                });
+
+                room.onStateChange(function (state) {
+                    document.getElementById("players").innerHTML = "";
+                    let players = state.toJSON().players;
+                    let code = document.createElement("code");
+
+                    for (let sessionId in players) {
+                        let pre = document.createElement("pre");
+                        pre.innerText = `${sessionId} : ${JSON.stringify(players[sessionId])}`;
+                        code.appendChild(pre);
+                    }
+                    document.getElementById("players").appendChild(code);
+                });
+            }
+
+            function join() {
+                client
+                    .join(document.getElementById("room_name").value, { code: "one" })
+                    .then((r) => {
+                        room = r;
+                        addListeners(room);
+                    })
+                    .catch((e) => {
+                        console.error(e.code, e.message);
+                    });
+            }
+
+            function create() {
+                client.create(document.getElementById("room_name").value, { code: "one" }).then((r) => {
+                    room = r;
+                    addListeners(room);
+                });
+            }
+
+            function joinOrCreate() {
+                client.joinOrCreate(document.getElementById("room_name").value, { auth: "one" }).then((r) => {
+                    room = r;
+                    addListeners(room);
+                });
+            }
+
+            function joinByLastId() {
+                client.joinById(room.id).then((r) => {
+                    room = r;
+                    addListeners(room);
+                });
+            }
+            function move(moveType) {
+                if (typeof moveType == "string") {
+                    switch (moveType) {
+                        case "to_left":
+                            room.send("move", { moveX: -2, moveY: 0 });
+                            break;
+                        case "to_right":
+                            room.send("move", { moveX: 2, moveY: 0 });
+                            break;
+                        case "to_down":
+                            room.send("move", { moveX: 0, moveY: -2 });
+                            break;
+                        case "to_up":
+                            room.send("move", { moveX: 0, moveY: 2 });
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            function getAvailableRooms() {
+                client
+                    .getAvailableRooms(document.getElementById("room_name").value)
+                    .then((rooms) => {
+                        document.getElementById("list-room").innerHTML = `
+              <code>
+              ${rooms.map((room) => `<pre>` + JSON.stringify(room) + ` </pre>`)}
+             </code>`;
+                        // console.log(rooms);
+                    })
+                    .catch((e) => {
+                        console.error(e);
+                    });
+            }
+            setInterval(getAvailableRooms, 2000);
+            function reconnect() {
+                console.log("client", client);
+                console.log("room_session_id", room.sessionId);
+                console.log("room_id", room.id);
+
+                client.reconnect(room.id, room.sessionId).then((r) => {
+                    room = r;
+                    addListeners(room);
+                });
+            }
+
+            function closeConnection() {
+                room.connection.close();
+            }
+
+            document.getElementById("form").onsubmit = function (e) {
+                e.preventDefault();
+
+                room.send(document.getElementById("message_type").value, document.getElementById("message_data").value);
+
+                // room.send(document.getElementById('input').value);
+                document.getElementById("message_data").value = null;
+            };
+        </script>
+        <script></script>
+    </body>
+</html>
