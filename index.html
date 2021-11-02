@@ -6,32 +6,35 @@
             body {
                 font-family: Tahoma, Geneva, sans-serif;
             }
+            .room{
+              padding: 4px;
+              border:1px solid yellowgreen;
+              margin-bottom: 0;
+              display: block;
+              
+              float: left;
+            }
+            .room pre{
+              padding-left: 5px;
+              padding: 0;
+              margin: 0;
+            }
         </style>
         <script src="colyseus.js"></script>
     </head>
     <body>
-      <div  style="width: 50%;float:left;">
-        <h2>Login</h2>
-        <label for="user_name">Username</label>
-        <input type="text" name="username" id="username" />
-        <label for="password">Password</label>
-        <input type="password" name="password" id="password" />
-        <button onclick="login()">Login</button>
-    </div>
 
-        <form id="form" style="width: 50%;float:left;">
-          <h2>Messages</h2>
-            Send data: <input type="text" id="message_type" value="message" placeholder="messageType" />
-            <input type="text" id="message_data"  placeholder="data" />
-            <input type="submit" value="send" />
-        </form>
-     
-
-        <div style="width: 100%;float:left;">
-            <h2>List room</h2>
-            <div id="list-room"></div>
-        </div>
-        Room name: <input type="text" id="room_name" value="my_room" /> <br />
+        <div  style="width: 50%;float:left;padding: 15px 0 ;">
+          <h2>Login</h2>
+          <label for="user_name">Username</label>
+          <input type="text" name="username" value="sunlordc1" id="username" />
+          <label for="password">Password</label>
+          <input type="password" value="sunlordc1" name="password" id="password" />
+          <button onclick="login()">Login</button>
+      </div>
+      <div style="width: 100%;float:left;padding: 15px 0">
+        <h2>Join Room</h2>
+        Room name: <input type="text" id="room_name" value="lobby" /> <br />
         <button onclick="join()">Join</button>
         <button onclick="joinOrCreate()">Join or create</button>
         <button onclick="create()">Create</button>
@@ -39,25 +42,48 @@
         <button onclick="getAvailableRooms()">List avaiable rooms</button>
         <button onclick="closeConnection()">Close connection</button>
         <button onclick="reconnect()">Re-join last closed connection</button>
-        <h2>Messages</h2>
+        </div>
+        <br>
+        <div style="width: 100%;float:left;padding: 15px 0">
+        <button onclick="joinById()">Join by id</button> 
 
-        <div id="boardgame" style="float: left;"></div>
-        <div id="messages" style="background-color: rgb(236, 236, 236); colorgb(41, 41, 41)ite; overflow-y: scroll; height: 512px;width: 40%;float:left"></div>
+
+        <label for="room_id" style="float:left">Options:(Json-Object):</label>
+        <input type="text" id="room_id" style="float:left" placeholder='roomId'>
+        <textarea name="data" id="room_data" cols="30" rows="10" style="float:left" placeholder="Data JSON here {}"></textarea>
+        </div>
+        <div style="clear:both"></div>
+        <div style="width:20%;float:left;position: relative;">
+          <h2>Messages</h2>
+          
+        <form id="form" style="position: absolute;bottom: 3%;left:3%">
+          <p>    Send data:</p>
+         <input type="text" id="message_type" value="message" placeholder="messageType" />
+            <input type="text" id="message_data"  placeholder="data" />
+            <input type="submit" value="send" />
+        </form>
+          <div id="messages" style="background-color: rgb(236, 236, 236); colorgb(41, 41, 41)ite; overflow-y: scroll; height: 512px;box-sizing: border-box;padding-bottom:30px ;"></div>
+        </div>
+    
   
-        <div style="float:left;width: 60%">
-          <div id="players" style="background-color: rgb(26, 24, 24); color: white; overflow-y: scroll; height: 512px;float:left;width: calc(100% - 120px);"></div>
-          <div style="float:left;width:120px;height:100px">
-            <button onclick="move('to_up')" style="margin-left: 20px;">Up</button>
+        <div style="float:left;width: 30%;position: relative;">
+          <h2>Client in Room</h2>
+          <div id="players" style="background-color: rgb(26, 24, 24); color: white; overflow-y: scroll; height: 512px;float:left;width: 100%"></div>
+          <div style="position:absolute;right:1%;top:14%;width:120px;height:100px">
+            <button onclick="move('to_up')" style="margin-left: 32px;width: 48px;height:48px">Up</button>
             <br>
-            <button onclick="move('to_left')">Left</button>
-            <button onclick="move('to_right')">Right</button>
+            <button onclick="move('to_left')" style="width: 48px;height:48px; margin-right: 8px;">Left</button>
+            <button onclick="move('to_right')" style="width: 48px;height:48px;">Right</button>
             <br>
-            <button onclick="move('to_down')" style="margin-left: 20px;">Down</button>
+            <button onclick="move('to_down')" style="margin-left: 32px;width: 48px;height:48px">Down</button>
           </div>
          
 
         </div>
-
+        <div style="width:50%;float:left;position: relative;">
+          <h2>List room</h2>
+          <div id="list-room" style="background-color: rgb(143, 133, 133);color:rgb(251, 242, 224);  overflow-y: scroll; height: 512px;float:left;width: 100%"></div>
+        </div>
 
         <script src="./axios.min.js"></script>
         <script>
@@ -66,7 +92,7 @@
             var client = new Colyseus.Client("ws://" + host + ":2567");
             console.log(client.auth);
             var room;
-
+          
             function login() {
                 let form = { username: document.getElementById("username").value, password: document.getElementById("password").value };
                 axios
@@ -108,8 +134,11 @@
 
             function join() {
                 client
-                    .join(document.getElementById("room_name").value, { code: "one" })
+                    .join(document.getElementById("room_name").value, { action:'join' })
                     .then((r) => {
+                      if(room) room.connection.close();
+                 
+
                         room = r;
                         addListeners(room);
                     })
@@ -119,14 +148,17 @@
             }
 
             function create() {
-                client.create(document.getElementById("room_name").value, { code: "one" }).then((r) => {
+                client.create(document.getElementById("room_name").value, { action:'create' }).then((r) => {
+                  if(room) room.connection.close();
+
                     room = r;
                     addListeners(room);
                 });
             }
 
             function joinOrCreate() {
-                client.joinOrCreate(document.getElementById("room_name").value, { auth: "one" }).then((r) => {
+                client.joinOrCreate(document.getElementById("room_name").value, { action:'joinorcreate' }).then((r) => {
+                  if(room) room.connection.close();
                     room = r;
                     addListeners(room);
                 });
@@ -137,6 +169,20 @@
                     room = r;
                     addListeners(room);
                 });
+            }
+            function  joinById(){
+              let room_id = document.getElementById('room_id').value
+              let room_data = document.getElementById('room_data').value
+              
+                client.joinById(room_id,JSON.parse(room_data)).then((r) => {
+                    room = r;
+                    console.log("joined successfully", room)
+                    addListeners(room);
+              });
+
+
+          
+             
             }
             function move(moveType) {
                 if (typeof moveType == "string") {
@@ -159,20 +205,37 @@
                 }
             }
             function getAvailableRooms() {
+              document.getElementById("list-room").innerHTML = ''
+              
+ 
                 client
                     .getAvailableRooms(document.getElementById("room_name").value)
                     .then((rooms) => {
-                        document.getElementById("list-room").innerHTML = `
-              <code>
-              ${rooms.map((room) => `<pre>` + JSON.stringify(room) + ` </pre>`)}
-             </code>`;
+                      rooms.map((room) => {
+                        let code = document.createElement("code");
+                        code.className = 'room'
+                        let pre = document.createElement("pre");
+                
+                        pre.innerText = `${room.roomId} : `
+                        code.appendChild(pre);
+                  
+
+                        for (let property in room) {
+                          let pre = document.createElement("pre");
+                          pre.innerText = `${property} : ${JSON.stringify(room[property])}`;
+                          code.appendChild(pre);
+                        }
+                        document.getElementById("list-room").appendChild(code);
+                      })
+                   
+           
                         // console.log(rooms);
                     })
                     .catch((e) => {
                         console.error(e);
                     });
             }
-            setInterval(getAvailableRooms, 2000);
+            setInterval(getAvailableRooms, 3000);
             function reconnect() {
                 console.log("client", client);
                 console.log("room_session_id", room.sessionId);
